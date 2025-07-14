@@ -4,73 +4,67 @@ import java.io.*;
 import java.net.*;
 
 public class gameClient {
-    public static void main(String[] args) {
-        String hostname = "localhost"; // サーバーのホスト名
-        int port = 12345; // サーバーのポート番号
+    private Socket socket;
+    private PrintWriter out;
+    private BufferedReader in;
 
-        try (Socket socket = new Socket(hostname, port)) {
-            System.out.println("サーバーに接続しました。");
+    public interface MessageListener {
+        void onMessageReceived(String message);
+    }
 
-            // メッセージ受信と送信のためのスレッドを開始
-            new Thread(new ReadThread(socket)).start();
-            new Thread(new WriteThread(socket)).start();
+    public interface ConnectionListener {
+        void onConnectSuccess();
+
+        void onConnectFail(IOException e);
+    }
+
+    public boolean isConnected() {
+        return socket != null && socket.isConnected() && !socket.isClosed();
+    }
+
+    private MessageListener messageListener;
+    private ConnectionListener connectionListener;
+
+    public gameClient(String host, int port, MessageListener listener, ConnectionListener connectionListener) {
+        this.messageListener = listener;
+        this.connectionListener = connectionListener;
+        try {
+            socket = new Socket(host, port);
+            System.out.println("サーバーに接続成功: " + host + ":" + port);
+            if (this.connectionListener != null) {
+                this.connectionListener.onConnectSuccess();
+            }
+            out = new PrintWriter(socket.getOutputStream(), true);
+            in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
+
+            new Thread(() -> {
+                try {
+                    String msg;
+                    while ((msg = in.readLine()) != null) {
+                        if (this.messageListener != null) {
+                            this.messageListener.onMessageReceived(msg);
+                        }
+                    }
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }).start();
 
         } catch (IOException e) {
+            if (this.connectionListener != null) {
+                this.connectionListener.onConnectFail(e);
+            }
             e.printStackTrace();
         }
     }
 
-    // サーバーからメッセージを受信するスレッド
-    private static class ReadThread implements Runnable {
-        private BufferedReader in;
-
-        public ReadThread(Socket socket) {
-            try {
-                in = new BufferedReader(new InputStreamReader(socket.getInputStream()));
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
-
-        @Override
-        public void run() {
-            String message;
-            try {
-                // サーバーからのメッセージを受信して表示
-                while ((message = in.readLine()) != null) {
-                    System.out.println("サーバーから: " + message);
-                }
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
+    public void setMessageListener(MessageListener listener) {
+        this.messageListener = listener;
     }
 
-    // サーバーにメッセージを送信するスレッド
-    private static class WriteThread implements Runnable {
-        private PrintWriter out;
-        private BufferedReader stdIn;
-
-        public WriteThread(Socket socket) {
-            try {
-                out = new PrintWriter(socket.getOutputStream(), true);
-                stdIn = new BufferedReader(new InputStreamReader(System.in));
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-        }
-
-        @Override
-        public void run() {
-            String userInput;
-            try {
-                // ユーザーからの入力を読み取り、サーバーに送信
-                while ((userInput = stdIn.readLine()) != null) {
-                    out.println(userInput);
-                }
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
+    public void sendMessage(String message) {
+        if (out != null) {
+            out.println(message);
         }
     }
 }

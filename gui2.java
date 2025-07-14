@@ -37,7 +37,7 @@ public class gui2 extends JFrame {
                     gui2 w = new gui2("Number Order Game", range);
                     w.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE); // ゲーム画面だけ閉じる
                     w.setSize(400, 400);
-                    w.setVisible(true);
+                    // w.setVisible(true);
                 });
 
             } catch (NumberFormatException e) {
